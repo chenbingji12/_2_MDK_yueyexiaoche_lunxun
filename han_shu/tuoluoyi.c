@@ -32,7 +32,6 @@ static uint8_t MPU6050_Init_Fast(void) {
     uint8_t check;
     uint8_t data;
 
-
     // 1. 检查 WHO_AM_I
     if (HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, MPU6050_REG_WHO_AM_I, 1, &check, 1, 100) != HAL_OK) {
         return 0;
@@ -43,23 +42,34 @@ static uint8_t MPU6050_Init_Fast(void) {
 
     // 2. 唤醒并设置时钟源 (PLL with Z axis gyro reference)
     data = 0x03;
-    HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, MPU6050_REG_PWR_MGMT, 1, &data, 1, 100);
+    if (HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, MPU6050_REG_PWR_MGMT, 1, &data, 1, 100) != HAL_OK) {
+        return 0;
+    }
+    HAL_Delay(10);  // 等待 PLL 稳定
 
     // 3. 配置陀螺仪 ±500°/s
     data = 0x08;
-    HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1B, 1, &data, 1, 100);
+    if (HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1B, 1, &data, 1, 100) != HAL_OK) {
+        return 0;
+    }
 
     // 4. 配置加速度计 ±2g
     data = 0x00;
-    HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1C, 1, &data, 1, 100);
+    if (HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1C, 1, &data, 1, 100) != HAL_OK) {
+        return 0;
+    }
 
     // 5. 设置采样率 200Hz (1kHz / (1 + 4))
     data = 0x04;
-    HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x19, 1, &data, 1, 100);
+    if (HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x19, 1, &data, 1, 100) != HAL_OK) {
+        return 0;
+    }
 
     // 6. 低通滤波配置 (DLPF = 42Hz, 延时更低)
     data = 0x03;
-    HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1A, 1, &data, 1, 100);
+    if (HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, 0x1A, 1, &data, 1, 100) != HAL_OK) {
+        return 0;
+    }
 
     return 1;
 }
@@ -71,9 +81,12 @@ static uint8_t MPU6050_Init_Fast(void) {
   */
 uint8_t MPU6050_ReadFiltered(MPU6050_Data* data) {
     uint8_t buf[14];
+    static uint8_t initialized = 0;             // 首次调用标志，避免重复初始化
 
-        // 首次调用：先初始化 MPU6050
+    if(!initialized) {                          // 只在第一次调用时初始化
         if(!MPU6050_Init_Fast()) return 0;
+        initialized = 1;
+    }
     
 
 

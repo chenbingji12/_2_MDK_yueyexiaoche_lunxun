@@ -21,16 +21,16 @@ void cmd_12(void){Dianjisudu(0,0);HAL_Delay(200);Xuanzhuan(90);Dianjisudu(0, 0);
 void cmd_13(void){Dianjisudu(0,0);HAL_Delay(200);Xuanzhuan(-90);Dianjisudu(0, 0);HAL_Delay(200);}
 
 HUIDUFENBU cmd_table[] = {
-  {h_00001111, cmd_1},{h_00011111, cmd_1},
-  {h_11110000, cmd_2},{h_11111000, cmd_2},
-  {h_00010000, cmd_3},
-  {h_00001000, cmd_4},
-  {h_00000100, cmd_5},{h_00001100, cmd_5},
-  {h_00100000, cmd_6},{h_00110000, cmd_6},
-  {h_01000000, cmd_7},{h_01100000, cmd_7},
-  {h_00000010, cmd_8},{h_00000110, cmd_8},
-  {h_10000000, cmd_9},{h_11000000, cmd_9},
-  {h_00000011, cmd_10},{h_00000001, cmd_10}
+  {h_11110000, cmd_1},{h_11100000, cmd_1},
+  {h_00001111, cmd_2},{h_00000111, cmd_2},
+  {h_11101111, cmd_3},
+  {h_11110111, cmd_4},
+  {h_11111011, cmd_5},{h_11110011, cmd_5},
+  {h_11011111, cmd_6},{h_11001111, cmd_6},
+  {h_10111111, cmd_7},{h_10011111, cmd_7},
+  {h_11111101, cmd_8},{h_11111001, cmd_8},
+  {h_01111111, cmd_9},{h_00111111, cmd_9},
+  {h_11111100, cmd_10},{h_11111110, cmd_10}
 };
 
 uint16_t cmd_table_size = sizeof(cmd_table) / sizeof(cmd_table[0]);

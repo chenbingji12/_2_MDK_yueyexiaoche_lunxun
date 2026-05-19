@@ -22,22 +22,22 @@ int huiduzhi(int tongdao)
             a1_0; a2_0; a3_0;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 1:
-            a1_0; a2_0; a3_1;
+            a1_1; a2_0; a3_0;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 2:
             a1_0; a2_1; a3_0;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 3:
-            a1_0; a2_1; a3_1;
+            a1_1; a2_1; a3_0;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 4:
-            a1_1; a2_0; a3_0;
+            a1_0; a2_0; a3_1;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 5:
             a1_1; a2_0; a3_1;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 6:
-            a1_1; a2_1; a3_0;
+            a1_0; a2_1; a3_1;
             return HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
         case 7:
             a1_1; a2_1; a3_1;
@@ -47,7 +47,13 @@ int huiduzhi(int tongdao)
     }
 }
 
+uint32_t zong=0;
+
 uint32_t zonghuiduzhi(void)
 {
-return(10000000*huiduzhi(0)+1000000*huiduzhi(1)+100000*huiduzhi(2)+10000*huiduzhi(3)+1000*huiduzhi(4)+100*huiduzhi(5)+10*huiduzhi(6)+huiduzhi(7));
+    for(int i=0;i<8;i++)
+    {
+        zong=zong+pow(10,7-i)*huiduzhi(i);
+    }
+return(zong);
 }

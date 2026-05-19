@@ -50,9 +50,13 @@
 I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim9;
+TIM_HandleTypeDef htim10;
 TIM_HandleTypeDef htim11;
 
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -62,26 +66,34 @@ volatile float distance=0.0f; // 超声波测距结果，单位为厘米
 volatile uint8_t tuoluoyi_flag=0;
 volatile float AX_zhi=0.0f; // 存储加速度计X轴数据，供下坡算法使用
 volatile float AY_zhi=0.0f; // 存储加速度计Y轴数据
-volatile float AZ_zhi=0.0f; // 存储加速度计Z轴数据
+volatile float GZ_zhi=0.0f; // 存储加速度计Z轴数据
 volatile float Z_angle=0.0f; // 存储陀螺仪Z轴旋转角度，供循迹算法使用
 volatile uint8_t chuankou_flag=0;
 volatile uint8_t H[8]={0}; // 存储8路灰度传感器数据，供串口输出使用
+volatile uint32_t count=0;
+volatile uint8_t jiaozhun_flag=0; // 校准标志位，1表示需要校准陀螺仪
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM11_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_TIM9_Init(void);
+static void MX_TIM10_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// (无环形缓冲区，fputc 使用轮询模式)
 
 /* USER CODE END 0 */
 
@@ -114,24 +126,32 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   MX_TIM11_Init();
+  MX_TIM4_Init();
+  MX_TIM9_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-//  __HAL_TIM_CLEAR_FLAG(&htim10, TIM_FLAG_UPDATE);
+  __HAL_TIM_CLEAR_FLAG(&htim10, TIM_FLAG_UPDATE);
   __HAL_TIM_CLEAR_FLAG(&htim11, TIM_FLAG_UPDATE);
-//  HAL_TIM_Base_Start_IT(&htim10);
+  __HAL_TIM_CLEAR_IT(&htim9, TIM_IT_UPDATE);
+  __HAL_TIM_CLEAR_IT(&htim4, TIM_IT_UPDATE);
+  HAL_TIM_Base_Start_IT(&htim9);
+  HAL_TIM_Base_Start_IT(&htim4);
+  HAL_TIM_Base_Start_IT(&htim10);
   HAL_TIM_Base_Start(&htim11);
 
   Tuoluoyi_Calibrate(100);  // 启动时自动校准陀螺仪，采样100次
 	
-	printf ("kkkkkkkkkkkkkkkkk");
+	printf ("kkkkkkkkkkkkkkkkkkkkkk\r\n");
 
   /* USER CODE END 2 */
 
@@ -143,65 +163,60 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-//if(ceju_flag>=80)
-//{
-	distance=chaoshenboceju();
-	
- if(distance<15.0f)
- {
-	 HAL_Delay(10);
-  if(distance<15.0f)
-	{
-      CarState=STATE_BIZHANG;
-		Dianjisudu(0,0);
+    if(CarState==STATE_BIZHANG)   // 如果进入避障状态
+    {
+      Dianjisudu(0,0);
 		HAL_Delay(100);
-		Xuanzhuan(180);
+		Xuanzhuan(180);   // 旋转180度
 		Dianjisudu(0,0);
 		HAL_Delay(100);
 		CarState = STATE_XUNJI ;
-  }
- }
-// ceju_flag=0;
-//}
+    }
 
-//if(tuoluoyi_flag>=100)
-//{
-  MPU6050_Data data;
-  if(MPU6050_ReadFiltered(&data))
-  {
-    AX_zhi=data.accel_x;
-    AY_zhi=data.accel_y;
-    AZ_zhi=data.accel_z;
-    Z_angle=Get_Z_RotationAngle();
-  }
-//  tuoluoyi_flag=0;   // ← 复位，否则只执行一次
-//}
+    if(jiaozhun_flag==1)
+    {
+      Tuoluoyi_Calibrate(3);  // 校准陀螺仪，采样3次
+//      MPU6050_Calibrate(3);  // 校准MPU6050，采样3次
+      jiaozhun_flag=0;
+    }
 
-//if(chuankou_flag>=50)
-//{
-  printf("[display,0,80,%03d]", (int)distance);
+    if(tuoluoyi_flag==1)
+    {
+      MPU6050_Data data;
+      if(MPU6050_ReadFiltered(&data))
+      {
+        AX_zhi=data.raw_accel_x;
+        AY_zhi=data.raw_accel_y;
+        GZ_zhi=data.raw_accel_z;
+        Z_angle=Get_Z_RotationAngle();
+      }
+      tuoluoyi_flag=0;
+    }
+
+    if(CarState==STATE_XUNJI)
+{
+//shizilukou();   //十字路口
+xunji(zonghuiduzhi());    //循迹
+jiansudai();    //减速带
+xiapo();    //下坡
+}
+
+  printf("[display,0,80,%03d]", (int)distance);   //超声波测距结果
 	
   for(int i=0;i<8;i++)
       {
         H[i]=huiduzhi(i);
-        printf("[display,%d,100,%d],", i * 15, H[i]);
-				
+        printf("[display,%d,100,%d],", i * 15, H[i]);   // 灰度传感器数据
       }
-      printf("[plot,%d,%d,%d]",(int)AX_zhi,(int)AY_zhi,(int)AZ_zhi);
+
+      printf("[plot,%d,%d,%d]",(int)AX_zhi,(int)AY_zhi,(int)GZ_zhi);    //绘曲线图
       printf("[display,0,0,AX:%05d]",(int)AX_zhi);
       printf("[display,0,20,AY:%05d]",(int)AY_zhi);
-      printf("[display,0,40,GZ:%05d]",(int)AZ_zhi);
-      printf("[display,0,60,Z_ANGLE:%05d]",(int)(Z_angle * 100));
-//      chuankou_flag=0;
-//}
-
-if(CarState==STATE_XUNJI)
-{
-//shizilukou();
-xunji(zonghuiduzhi());
-jiansudai();
-xiapo();
-}
+      printf("[display,0,40,GZ:%05d]",(int)GZ_zhi);
+      printf("[display,0,60,Z_ANGLE:%05d]",(int)(Z_angle * 100));   //陀螺仪数据
+			
+			 count++;
+			printf ("[display,0,120,%08d]",count);
 
 }
   /* USER CODE END 3 */
@@ -358,6 +373,120 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 4999;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 9999;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 49999;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+
+}
+
+/**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 49999;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 9999;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
+
+}
+
+/**
   * @brief TIM11 Initialization Function
   * @param None
   * @retval None
@@ -422,6 +551,22 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA2_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -480,8 +625,8 @@ static void MX_GPIO_Init(void)
 
 int fputc(int ch, FILE *f)
 {
-  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-  return ch;
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
 }
 
 int fgetc(FILE *f)
@@ -495,10 +640,30 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim->Instance == TIM10)
   {
-    ceju_flag=ceju_flag+1;
-    tuoluoyi_flag=tuoluoyi_flag+1;
-    chuankou_flag=chuankou_flag+1;
+    if(CarState==STATE_XUNJI)
+    {
+    jiaozhun_flag=1;
+    }
   }
+
+  if(htim->Instance == TIM4)
+  {
+    if(CarState==STATE_XUNJI)
+    {
+      distance=chaoshenboceju();
+	
+ if(distance<15.0f)
+ {
+      CarState=STATE_BIZHANG;
+    }
+    }
+  }
+
+  if(htim->Instance == TIM9)
+  {
+    tuoluoyi_flag=1;
+  }
+
 }
 
 /* USER CODE END 4 */
